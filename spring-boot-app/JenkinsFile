@@ -1,9 +1,7 @@
 pipeline {
-    agent { label 'slave' } // Replace 'slave' with the appropriate label for your agent
+    agent any // Replace 'slave' with the appropriate label for your agent
 
-    tools {
-        maven 'M3' // Ensure that 'M3' is the correct name for your Maven installation in Jenkins
-    }
+
 
     stages {
         stage('Git Checkout') {
@@ -21,22 +19,6 @@ pipeline {
                 '''
             }
         }
-
-        stage('Sonar Analysis') {
-            steps {
-                withSonarQubeEnv('sonar-scanner') {
-                    sh 'cd spring-boot-app/ && mvn sonar:sonar -Dsonar.projectKey=kubernetics -Dsonar.projectName="kubernetics"'
-                }
-            }
-        }
-        
-        stage('build docker image') {
-            steps {
-                withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
-                sh'''
-                cd spring-boot-app/ && docker build -t kubernetes:1.0 .
-                docker tag kubernetes:1.0 saeedhmohd244/kubernetes:1.0
-                docker push saeedhmohd244/kubernetes:1.0
                 '''
                 }
             }
