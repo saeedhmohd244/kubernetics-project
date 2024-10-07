@@ -9,15 +9,5 @@ pipeline {
                 git branch: 'main', changelog: false, poll: false, url: 'https://github.com/saeedhmohd244/kubernetics-project.git'
             }
         }
-
-        stage('Build Artifact') {
-            steps {
-                sh '''
-                java -version
-                cd spring-boot-app/
-                mvn clean install
-                '''
-            }
-        }
     }
 }
