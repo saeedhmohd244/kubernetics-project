@@ -1,5 +1,5 @@
 pipeline {
-    agent any // Replace 'slave' with the appropriate label for your agent
+    agent any 
 
 
 
