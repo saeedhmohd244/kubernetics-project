@@ -1,13 +1,116 @@
 pipeline {
     agent any //update file
 
-
+    environment {
+        REPO = 'your-repo-url'
+        DOCKER_IMAGE = 'your-image-name'
+        DOCKER_REGISTRY = 'your-docker-registry'
+        NEXUS_URL = 'your-nexus-url'
+        SONARQUBE_URL = 'your-sonarqube-url'
+        OWASP_REPORT_DIR = 'owasp-report'
+    }
 
     stages {
         stage('Git Checkout') {
             steps {
                 git branch: 'main', changelog: false, poll: false, url: 'https://github.com/saeedhmohd244/kubernetics-project.git'
             }
+    }
+        
+        stage('Build with Maven') {
+            steps {
+                script {
+                    // Clean and package the Maven project
+                    sh 'mvn clean package'
+                }
+            }
         }
+        
+        stage('Static Code Analysis - SonarQube') {
+            steps {
+                script {
+                    withSonarQubeEnv('SonarQube') {
+                        sh 'mvn sonar:sonar'
+                    }
+                }
+            }
+        }
+        
+        stage('Dependency Check - OWASP') {
+            steps {
+                sh "mvn org.owasp:dependency-check-maven:check -Dformat=HTML -DoutputDirectory=${OWASP_REPORT_DIR}"
+                publishHTML([
+                    reportDir: OWASP_REPORT_DIR, 
+                    reportFiles: 'dependency-check-report.html', 
+                    reportName: 'OWASP Dependency Check'
+                ])
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                }
+            }
+        }
+        
+        stage('Push to Nexus') {
+            steps {
+                script {
+                    sh "mvn deploy -DaltDeploymentRepository=nexus::default::${NEXUS_URL}/repository/maven-releases"
+                }
+            }
+        }
+        
+        stage('Push Docker Image to Registry') {
+            steps {
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                        sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${BUILD_NUMBER}"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Use ArgoCD CLI to sync the application on Kubernetes
+                    sh """
+                    argocd app sync my-k8s-app --refresh
+                    argocd app wait my-k8s-app --timeout 600
+                    """
+                }
+            }
+        }
+        
+        stage('Post-Deployment Tests') {
+            steps {
+                echo 'Running post-deployment tests...'
+                // Implement additional tests here if needed
+            }
+        }
+        
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        
+        success {
+            echo 'Deployment successful!'
+        }
+        
+        failure {
+            echo 'Deployment failed. Rolling back...'
+            script {
+                sh "argocd app rollback my-k8s-app"
+            }
+        }
+    }
+}
+
     }
 }
